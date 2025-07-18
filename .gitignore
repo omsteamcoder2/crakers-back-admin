@@ -1,0 +1,39 @@
+# Node modules
+node_modules/
+
+# Bun dependencies
+bun.lockb
+.bun/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Dependency directories
+bower_components/
+jspm_packages/
+
+# Build output
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.swp
+*.lock
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+
+# IDE files
+.vscode/
+.idea/
+
+# Coverage directories
+coverage/
+
+# Debugging files
+debug.log
