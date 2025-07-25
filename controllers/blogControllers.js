@@ -97,15 +97,19 @@ export const updateBlogBySlug = async (req, res) => {
       baseFolder = "blogs";
     }
 
-    // Properly parse keepImages (handle both string and array cases)
     let keepImages = [];
     try {
-      keepImages = typeof req.body.keepImages === 'string' 
-        ? JSON.parse(req.body.keepImages) 
-        : req.body.keepImages || [];
-    } catch (e) {
+      const raw = req.body.keepImages;
+      if (Array.isArray(raw)) {
+        keepImages = raw;
+      } else if (typeof raw === "string") {
+        keepImages = JSON.parse(raw);
+      }
+    } catch (err) {
+      console.error("Failed to parse keepImages:", err);
       keepImages = [];
     }
+
 
     const existingBlog = await Blog.findOne({ slug });
     if (!existingBlog) {
@@ -116,11 +120,8 @@ export const updateBlogBySlug = async (req, res) => {
     const existingImages = existingBlog.images || [];
     const existingImageFilenames = existingImages.map(img => path.basename(img));
     
-    // Find images to delete - those not in keepImages
-    const imagesToDelete = existingImages.filter(img => {
-      const filename = path.basename(img);
-      return !keepImages.includes(filename);
-    });
+    const imagesToDelete = existingImages.filter(img => !keepImages.includes(img));
+
     
     // Get new images (if any) with full paths
     const newImageFiles = req.files?.images 
@@ -129,25 +130,23 @@ export const updateBlogBySlug = async (req, res) => {
     
     // Combine kept images (filter existing ones based on keepImages) and new images
     const allImages = [
-      ...existingImages.filter(img => keepImages.includes(path.basename(img))),
+      ...existingImages.filter(img => keepImages.includes(img)),
       ...newImageFiles
     ];
 
-    // Handle ogImage
-    let ogImage = existingBlog.ogImage;
+    let ogImage;
+
     if (req.files?.ogImage?.[0]) {
-      // Delete old ogImage if it's not being kept in regular images
-      if (ogImage && !allImages.some(img => path.basename(img) === path.basename(ogImage))) {
-        await deleteImageFiles([ogImage]);
-      }
+      // ✅ New ogImage uploaded
       ogImage = `/uploads/${baseFolder}/og-images/${req.files.ogImage[0].filename}`;
+    } else if (existingBlog.ogImage && allImages.includes(existingBlog.ogImage)) {
+      // ✅ Keep previous ogImage if still present in image list
+      ogImage = existingBlog.ogImage;
     } else {
-      // If ogImage isn't being updated, check if it should be kept
-      if (ogImage && !allImages.some(img => path.basename(img) === path.basename(ogImage))) {
-        // If ogImage isn't in the kept images, set it to first image or empty
-        ogImage = allImages.length > 0 ? allImages[0] : '';
-      }
+      // ✅ Fallback: use first available image
+      ogImage = allImages.length > 0 ? allImages[0] : "";
     }
+
 
     updatedData.images = allImages;
     updatedData.ogImage = ogImage;

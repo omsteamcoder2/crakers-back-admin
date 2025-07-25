@@ -94,7 +94,17 @@ export const updateProjectBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
     const updatedData = req.body;
-    const keepGalleryImages = req.body.keepGalleryImages || [];
+    let keepGalleryImages = [];
+    try {
+      keepGalleryImages = JSON.parse(req.body.keepGalleryImages);
+      if (!Array.isArray(keepGalleryImages)) keepGalleryImages = [];
+    } catch {
+      // fallback in case it's already an array or invalid JSON
+      keepGalleryImages = Array.isArray(req.body.keepGalleryImages)
+        ? req.body.keepGalleryImages
+        : [];
+    }
+
     const removeCoverImage = req.body.removeCoverImage === "true";
 
     const existingProject = await Project.findOne({ slug });
@@ -116,7 +126,7 @@ export const updateProjectBySlug = async (req, res) => {
         if (existingProject.coverImage) {
           imagesToDelete.push(existingProject.coverImage);
         }
-        updatedData.coverImage = newCoverImage;
+        updatedData.coverImage = `/uploads/projects/cover-image/${newCoverImage}`;
       } else {
         updatedData.coverImage = existingProject.coverImage;
       }
@@ -128,12 +138,28 @@ export const updateProjectBySlug = async (req, res) => {
     );
     imagesToDelete = [...imagesToDelete, ...galleryImagesToDelete];
 
-    const newGalleryImages = req.files["gallery"]?.map((file) => file.filename) || [];
+    const newGalleryImages = req.files["gallery"]?.map(
+      (file) => `/uploads/projects/images/${file.filename}`
+    ) || [];
+
     updatedData.gallery = [...keepGalleryImages, ...newGalleryImages];
 
-    // Set default OG image if not explicitly provided
-    if (!updatedData.ogImage) {
+    // ✅ Handle ogImage update
+    const uploadedOgImage = req.files["ogImage"]?.[0];
+    const manualOgImage = req.body.ogImage;
+
+    if (uploadedOgImage) {
+      // If user uploaded a new ogImage
+      updatedData.ogImage = `/uploads/projects/og-images/${uploadedOgImage.filename}`;
+    } else if (manualOgImage) {
+      // If manually entered ogImage (string)
+      updatedData.ogImage = manualOgImage.trim();
+    } else if (!existingProject.ogImage) {
+      // Only fallback if ogImage was not set before
       updatedData.ogImage = updatedData.coverImage || updatedData.gallery[0] || "";
+    } else {
+      // Retain existing if no new ogImage and already set
+      updatedData.ogImage = existingProject.ogImage;
     }
 
     const updatedProject = await Project.findOneAndUpdate({ slug }, updatedData, {
@@ -152,6 +178,7 @@ export const updateProjectBySlug = async (req, res) => {
     res.status(500).json({ message: "Failed to update project" });
   }
 };
+
 
 // ✅ Delete Project by Slug
 export const deleteProjectBySlug = async (req, res) => {
