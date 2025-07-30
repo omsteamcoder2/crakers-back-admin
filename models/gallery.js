@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 const gallerySchema = new mongoose.Schema({
   title: {
     type: String,
-    required: true,
     trim: true
   },
   description: {
@@ -12,8 +11,8 @@ const gallerySchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    default: "General",
-    enum: ["General", "Construction", "Interior", "Landscape", "BeforeAfter"]
+    default: "Residential",
+    enum: ["Residential", "Commercial", "Hotel", "Industrial", "Laboratory","Hospital","Repair"]
   },
   images: [{
     type: String,
@@ -32,11 +31,6 @@ const gallerySchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
-  slug: {
-    type: String,
-    unique: true,
-    trim: true
-  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -19,6 +19,7 @@ export const createProject = async (req, res) => {
     const {
       title,
       description,
+      excerpt,
       category,
       location,
       metaTitle,
@@ -27,12 +28,22 @@ export const createProject = async (req, res) => {
       ogDescription,
       ogImage,
       keywords,
+      slug,
+
+      // ✅ New fields
+      clientName,
+      projectDate,
+      budget,
+      duration,
+      servicesProvided,
+      materialsUsed,
+      safetyMeasures,
+      locationMap,
+      testimonials
     } = req.body;
 
     const coverImage = req.files["coverImage"]?.[0] ? getRelativePath(req.files["coverImage"][0]) : null;
     const gallery = req.files["gallery"]?.map(getRelativePath) || [];
-
-    const slug = slugify(title, { lower: true, strict: true });
 
     const ogImageFile = req.files["ogImage"]?.[0];
     const ogImagePath = ogImageFile ? getRelativePath(ogImageFile) : null;
@@ -42,6 +53,7 @@ export const createProject = async (req, res) => {
     const project = new Project({
       title,
       description,
+      excerpt,
       category,
       location,
       coverImage,
@@ -53,6 +65,17 @@ export const createProject = async (req, res) => {
       ogDescription,
       ogImage: ogImageValue,
       keywords: keywords?.split(",").map((k) => k.trim()),
+
+      // ✅ Assign new fields
+      clientName,
+      projectDate,
+      budget,
+      duration,
+      servicesProvided: servicesProvided?.split(",").map((s) => s.trim()),
+      materialsUsed: materialsUsed?.split(",").map((m) => m.trim()),
+      safetyMeasures,
+      locationMap,
+      testimonials: testimonials ? JSON.parse(testimonials) : [],
     });
 
     const savedProject = await project.save();
@@ -66,6 +89,7 @@ export const createProject = async (req, res) => {
     res.status(500).json({ message: "Failed to save project" });
   }
 };
+
 
 // ✅ Get All Projects
 export const getProjects = async (req, res) => {
@@ -93,91 +117,44 @@ export const getProjectBySlug = async (req, res) => {
 export const updateProjectBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
-    const updatedData = req.body;
-    let keepGalleryImages = [];
-    try {
-      keepGalleryImages = JSON.parse(req.body.keepGalleryImages);
-      if (!Array.isArray(keepGalleryImages)) keepGalleryImages = [];
-    } catch {
-      // fallback in case it's already an array or invalid JSON
-      keepGalleryImages = Array.isArray(req.body.keepGalleryImages)
-        ? req.body.keepGalleryImages
-        : [];
-    }
+    const updateData = req.body;
 
-    const removeCoverImage = req.body.removeCoverImage === "true";
-
-    const existingProject = await Project.findOne({ slug });
-    if (!existingProject) {
-      return res.status(404).json({ message: "Project not found" });
-    }
-
-    let imagesToDelete = [];
-
-    // Handle cover image
-    if (removeCoverImage) {
-      if (existingProject.coverImage) {
-        imagesToDelete.push(existingProject.coverImage);
-      }
-      updatedData.coverImage = null;
-    } else {
-      const newCoverImage = req.files["coverImage"]?.[0]?.filename;
-      if (newCoverImage) {
-        if (existingProject.coverImage) {
-          imagesToDelete.push(existingProject.coverImage);
-        }
-        updatedData.coverImage = `/uploads/projects/cover-image/${newCoverImage}`;
-      } else {
-        updatedData.coverImage = existingProject.coverImage;
+    // ✅ Handle testimonials if stringified
+    if (typeof updateData.testimonials === "string") {
+      try {
+        updateData.testimonials = JSON.parse(updateData.testimonials);
+      } catch (err) {
+        return res.status(400).json({ message: "Invalid testimonials format" });
       }
     }
 
-    // Handle gallery images
-    const galleryImagesToDelete = existingProject.gallery.filter(
-      (img) => !keepGalleryImages.includes(img)
+    // ✅ Handle arrays from formData
+    if (typeof updateData.servicesProvided === "string") {
+      updateData.servicesProvided = updateData.servicesProvided.split(",");
+    }
+    if (typeof updateData.materialsUsed === "string") {
+      updateData.materialsUsed = updateData.materialsUsed.split(",");
+    }
+
+    // ✅ Optionally log final data
+
+    const updatedProject = await Project.findOneAndUpdate(
+      { slug },
+      updateData,
+      { new: true }
     );
-    imagesToDelete = [...imagesToDelete, ...galleryImagesToDelete];
-
-    const newGalleryImages = req.files["gallery"]?.map(
-      (file) => `/uploads/projects/images/${file.filename}`
-    ) || [];
-
-    updatedData.gallery = [...keepGalleryImages, ...newGalleryImages];
-
-    // ✅ Handle ogImage update
-    const uploadedOgImage = req.files["ogImage"]?.[0];
-    const manualOgImage = req.body.ogImage;
-
-    if (uploadedOgImage) {
-      // If user uploaded a new ogImage
-      updatedData.ogImage = `/uploads/projects/og-images/${uploadedOgImage.filename}`;
-    } else if (manualOgImage) {
-      // If manually entered ogImage (string)
-      updatedData.ogImage = manualOgImage.trim();
-    } else if (!existingProject.ogImage) {
-      // Only fallback if ogImage was not set before
-      updatedData.ogImage = updatedData.coverImage || updatedData.gallery[0] || "";
-    } else {
-      // Retain existing if no new ogImage and already set
-      updatedData.ogImage = existingProject.ogImage;
-    }
-
-    const updatedProject = await Project.findOneAndUpdate({ slug }, updatedData, {
-      new: true,
-    });
 
     if (!updatedProject) {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    deleteImageFiles(imagesToDelete);
-
-    res.status(200).json({ message: "Project updated successfully", project: updatedProject });
+    res.status(200).json({ message: "Project updated", project: updatedProject });
   } catch (err) {
     console.error("Error updating project:", err);
     res.status(500).json({ message: "Failed to update project" });
   }
 };
+
 
 
 // ✅ Delete Project by Slug
@@ -223,7 +200,6 @@ function deleteImageFiles(filenames) {
         const filePath = path.join(process.cwd(), folder, filename);
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
-          console.log(`Deleted file: ${filePath}`);
           break; // Stop checking after first successful deletion
         }
       }

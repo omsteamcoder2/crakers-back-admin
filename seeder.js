@@ -11,9 +11,7 @@ const connectDB = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log("Database connected successfully");
   } catch (err) {
-    console.error("Database connection failed:", err);
     process.exit(1);
   }
 };
@@ -24,7 +22,6 @@ const seedAdminUser = async () => {
     // Check if an admin user already exists
     const existingAdmin = await User.findOne({ email: "admin@example.com" });
     if (existingAdmin) {
-      console.log("Admin user already exists");
       process.exit(0);
     }
 
@@ -34,7 +31,7 @@ const seedAdminUser = async () => {
     // Create the admin user
     const adminUser = new User({
       name: "Admin",
-      email: "admin@example.com",
+      email: "admin@hari.com",
       password: hashedPassword,
       role: "admin", // Assuming you have a role field
     });

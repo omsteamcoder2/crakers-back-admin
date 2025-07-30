@@ -3,7 +3,6 @@ import {
   uploadGallery, 
   getGalleries, 
   getGalleryById,
-  getGalleryBySlug,
   updateGallery, 
   deleteGallery,
   deleteGalleryImage 
@@ -24,10 +23,6 @@ router.get("/galleries", getGalleries);
 
 // Get gallery by ID
 router.get("/galleries/:id", getGalleryById);
-
-// Get gallery by slug
-router.get("/galleries/slug/:slug", getGalleryBySlug);
-
 // Update gallery
 router.put("/galleries/:id", 
   upload.fields([{ name: "gallery", maxCount: 10 }]), 

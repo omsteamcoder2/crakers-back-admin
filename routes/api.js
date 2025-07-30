@@ -111,8 +111,6 @@ router.post("/login", (req, res) => {
 });
 router.post("/gallery-upload", upload.array("gallery", 10), async (req, res) => {
   try {
-    console.log("Files received:", req.files);
-
     const imageFiles = req.files.map((file) => file.filename);
 
     const newGallery = new Gallery({

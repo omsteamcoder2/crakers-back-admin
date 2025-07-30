@@ -17,14 +17,10 @@ const storage = multer.diskStorage({
     const url = req.originalUrl.toLowerCase();
     
     // Check for any blog-related routes
-    if (url.includes("blog") || url.includes("blogs")) {
-      baseFolder = "blogs";
-    } else if (url.includes("project") || url.includes("projects")) {
+if (url.includes("project") || url.includes("projects")) {
       baseFolder = "projects";
     } else if (url.includes("gallery") || url.includes("galleries")) {
       baseFolder = "gallery";
-    } else if (url.includes("service") || url.includes("services")) {
-      baseFolder = "services";
     }
 
     let subFolder = "images"; // default fallback

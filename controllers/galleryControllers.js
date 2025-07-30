@@ -16,7 +16,6 @@ async function deleteImageFiles(filenames) {
         const filePath = path.join(process.cwd(), folder, basename);
         if (fs.existsSync(filePath)) {
           await fs.promises.unlink(filePath);
-          console.log(`Deleted file: ${filePath}`);
           break;
         }
       }
@@ -30,10 +29,6 @@ export const uploadGallery = async (req, res) => {
   try {
     const { title, description, category, metaTitle, metaDescription, keywords } = req.body;
     
-    if (!title) {
-      return res.status(400).json({ message: "Title is required" });
-    }
-
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "At least one image is required" });
     }
@@ -89,19 +84,6 @@ export const getGalleries = async (req, res) => {
 export const getGalleryById = async (req, res) => {
   try {
     const gallery = await Gallery.findById(req.params.id);
-    if (!gallery) {
-      return res.status(404).json({ message: "Gallery not found" });
-    }
-    res.status(200).json({ gallery });
-  } catch (err) {
-    console.error("Error fetching gallery:", err);
-    res.status(500).json({ message: "Failed to fetch gallery" });
-  }
-};
-
-export const getGalleryBySlug = async (req, res) => {
-  try {
-    const gallery = await Gallery.findOne({ slug: req.params.slug });
     if (!gallery) {
       return res.status(404).json({ message: "Gallery not found" });
     }

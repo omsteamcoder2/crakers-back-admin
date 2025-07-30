@@ -5,10 +5,9 @@ import path from "path";
 import authRoutes from "./routes/authRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
 import galleryRoutes from "./routes/galleryRoutes.js";
-import blogRoutes from "./routes/blogRoutes.js";
-import serviceRoutes from "./routes/serviceRoutes.js";
 import mongoose from "mongoose";
 import loggerMiddleware from "./middleware/loggerMiddleware.js";
+import gtmTagRoutes from "./routes/gtmRoutes.js";
 
 dotenv.config();
 
@@ -30,8 +29,7 @@ app.use(loggerMiddleware); // Use the logger middleware
 app.use("/api", authRoutes);
 app.use("/api", projectRoutes);
 app.use("/api", galleryRoutes);
-app.use("/api", blogRoutes);
-app.use("/api", serviceRoutes);
+app.use("/api", gtmTagRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
