@@ -20,18 +20,18 @@ const connectDB = async () => {
 const seedAdminUser = async () => {
   try {
     // Check if an admin user already exists
-    const existingAdmin = await User.findOne({ email: "admin@example.com" });
+    const existingAdmin = await User.findOne({ email: "globe@hostupto.com" });
     if (existingAdmin) {
       process.exit(0);
     }
 
     // Hash the password
-    const hashedPassword = await bcrypt.hash("admin123", 10);
+    const hashedPassword = await bcrypt.hash("eurohost@4488", 10);
 
     // Create the admin user
     const adminUser = new User({
       name: "Admin",
-      email: "admin@hari.com",
+      email: "globe@hostupto.com",
       password: hashedPassword,
       role: "admin", // Assuming you have a role field
     });

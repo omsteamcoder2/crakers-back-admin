@@ -3,50 +3,71 @@ import path from "path";
 import fs from "fs";
 
 // Helper function to delete image files
-async function deleteImageFiles(filenames) {
+// Enhanced helper function to delete image files with retry
+const deleteImageFiles = async (filenames) => {
   for (const filename of filenames) {
     try {
       const basename = path.basename(filename);
-      const folders = [
-        'uploads/gallery/images',
-        'uploads' // fallback
-      ];
+      const filePath = path.join(process.cwd(), "uploads/gallery", basename);
 
-      for (const folder of folders) {
-        const filePath = path.join(process.cwd(), folder, basename);
-        if (fs.existsSync(filePath)) {
-          await fs.promises.unlink(filePath);
-          break;
-        }
+      console.log("Trying to delete:", filePath);
+      if (fs.existsSync(filePath)) {
+        await retryDeleteWithBackoff(filePath);
+      } else {
+        console.warn("File does not exist:", filePath);
       }
     } catch (error) {
       console.error(`Error deleting file ${filename}:`, error);
     }
   }
-}
+};
+// Retry-based deletion with exponential backoff for locked files
+const retryDeleteWithBackoff = async (filePath, retries = 5, delay = 200) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      // Optional rename trick to break lock
+      const tempPath = filePath + ".deleting";
+      try {
+        await fs.promises.rename(filePath, tempPath);
+        await fs.promises.unlink(tempPath);
+        console.log(`✅ Renamed & deleted locked file: ${filePath}`);
+      } catch {
+        await fs.promises.unlink(filePath);
+        console.log(`✅ Deleted file: ${filePath}`);
+      }
+      return;
+    } catch (err) {
+      if (["EBUSY", "EPERM"].includes(err.code)) {
+        console.warn(`⚠️ Locked (attempt ${i + 1}): ${filePath}`);
+        await new Promise((res) => setTimeout(res, delay * (i + 1))); // exponential backoff
+      } else if (err.code === "ENOENT") {
+        console.warn(`⚠️ File already gone: ${filePath}`);
+        return;
+      } else {
+        throw err;
+      }
+    }
+  }
+  console.error(`⛔ Failed to delete after retries: ${filePath}`);
+};
 
+
+// Create Gallery
 export const uploadGallery = async (req, res) => {
   try {
-    const { title, description, category, metaTitle, metaDescription, keywords } = req.body;
-    
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "At least one image is required" });
+    const { category } = req.body;
+
+    if (!category || !req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "Category and at least one image are required" });
     }
 
     const imageFiles = Array.isArray(req.files.gallery)
-      ? req.files.gallery.map(file => `/uploads/gallery/images/${file.filename}`)
+      ? req.files.gallery.map(file => `/uploads/gallery/${file.filename}`)
       : [];
 
-    const keywordArray = keywords ? keywords.split(',').map(k => k.trim()) : [];
-
     const newGallery = new Gallery({
-      title,
-      description,
       category,
       images: imageFiles,
-      metaTitle: metaTitle || title,
-      metaDescription: metaDescription || description?.substring(0, 160) || '',
-      keywords: keywordArray
     });
 
     await newGallery.save();
@@ -57,20 +78,14 @@ export const uploadGallery = async (req, res) => {
     });
   } catch (err) {
     console.error("Error creating gallery:", err);
-    
-    // Clean up uploaded files if there was an error
-    if (req.files?.length > 0) {
-      await deleteImageFiles(req.files.map(file => file.filename));
+    if (Array.isArray(req.files?.gallery) && req.files.gallery.length > 0) {
+      await deleteImageFiles(req.files.gallery.map(file => file.filename));
     }
-    
-    if (err.code === 11000) {
-      return res.status(400).json({ message: "A gallery with this title already exists" });
-    }
-    
     res.status(500).json({ message: "Failed to create gallery" });
   }
 };
 
+// Get All Galleries
 export const getGalleries = async (req, res) => {
   try {
     const galleries = await Gallery.find().sort({ createdAt: -1 });
@@ -81,6 +96,7 @@ export const getGalleries = async (req, res) => {
   }
 };
 
+// Get Gallery by ID
 export const getGalleryById = async (req, res) => {
   try {
     const gallery = await Gallery.findById(req.params.id);
@@ -94,16 +110,16 @@ export const getGalleryById = async (req, res) => {
   }
 };
 
+// Update Gallery
 export const updateGallery = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, category, metaTitle, metaDescription, keywords, keepImages } = req.body;
-    
-    // Parse keepImages (could be stringified array or array)
+    const { category, keepImages } = req.body;
+
     let imagesToKeep = [];
     try {
       imagesToKeep = typeof keepImages === 'string' ? JSON.parse(keepImages) : keepImages || [];
-    } catch (e) {
+    } catch {
       imagesToKeep = [];
     }
 
@@ -112,32 +128,23 @@ export const updateGallery = async (req, res) => {
       return res.status(404).json({ message: "Gallery not found" });
     }
 
-    // Handle images
     const existingImages = existingGallery.images || [];
     const imagesToDelete = existingImages.filter(img => !imagesToKeep.includes(img));
-    
-    // Get new images (if any)
+
     const newImageFiles = Array.isArray(req.files?.gallery)
-      ? req.files.gallery.map(file => `/uploads/gallery/images/${file.filename}`)
+      ? req.files.gallery.map(file => `/uploads/gallery/${file.filename}`
+)
       : [];
 
-    
-    // Combine kept and new images
     const allImages = [
-      ...existingImages.filter(img => imagesToKeep.includes(img)),
+      ...imagesToKeep,
       ...newImageFiles
     ];
 
-    // Prepare update data
     const updateData = {
-      title: title || existingGallery.title,
-      description: description || existingGallery.description,
       category: category || existingGallery.category,
       images: allImages,
-      metaTitle: metaTitle || existingGallery.metaTitle,
-      metaDescription: metaDescription || existingGallery.metaDescription,
-      keywords: keywords ? keywords.split(',').map(k => k.trim()) : existingGallery.keywords,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     const updatedGallery = await Gallery.findByIdAndUpdate(id, updateData, { new: true });
@@ -146,7 +153,6 @@ export const updateGallery = async (req, res) => {
       return res.status(404).json({ message: "Gallery not found" });
     }
 
-    // Delete old images that are no longer needed
     if (imagesToDelete.length > 0) {
       await deleteImageFiles(imagesToDelete);
     }
@@ -157,26 +163,22 @@ export const updateGallery = async (req, res) => {
     });
   } catch (err) {
     console.error("Error updating gallery:", err);
-    
     if (Array.isArray(req.files?.gallery) && req.files.gallery.length > 0) {
       await deleteImageFiles(req.files.gallery.map(file => file.filename));
     }
-
-    
     res.status(500).json({ message: "Failed to update gallery" });
   }
 };
 
+// Delete Gallery
 export const deleteGallery = async (req, res) => {
   try {
     const { id } = req.params;
-
     const deletedGallery = await Gallery.findByIdAndDelete(id);
     if (!deletedGallery) {
       return res.status(404).json({ message: "Gallery not found" });
     }
 
-    // Delete all associated image files
     if (deletedGallery.images?.length > 0) {
       await deleteImageFiles(deletedGallery.images);
     }
@@ -188,26 +190,22 @@ export const deleteGallery = async (req, res) => {
   }
 };
 
+// Delete Single Image from Gallery
 export const deleteGalleryImage = async (req, res) => {
   try {
     const { galleryId, filename } = req.params;
-
     const gallery = await Gallery.findById(galleryId);
     if (!gallery) {
       return res.status(404).json({ message: "Gallery not found" });
     }
 
-    // Check if image exists in gallery
     const imageIndex = gallery.images.findIndex(img => img.includes(filename));
     if (imageIndex === -1) {
       return res.status(404).json({ message: "Image not found in gallery" });
     }
 
-    // Remove image from array
     gallery.images.splice(imageIndex, 1);
     await gallery.save();
-
-    // Delete the file
     await deleteImageFiles([filename]);
 
     res.status(200).json({

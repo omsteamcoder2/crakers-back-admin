@@ -1,51 +1,29 @@
 import mongoose from "mongoose";
 
 const gallerySchema = new mongoose.Schema({
-  title: {
-    type: String,
-    trim: true
-  },
-  description: {
-    type: String,
-    trim: true
-  },
   category: {
     type: String,
-    default: "Residential",
-    enum: ["Residential", "Commercial", "Hotel", "Industrial", "Laboratory","Hospital","Repair"]
+    required: true, // This should be required if used for grouping
   },
-  images: [{
-    type: String,
-    required: true
-  }],
-  // SEO Fields
-  metaTitle: {
-    type: String,
-    trim: true
-  },
-  metaDescription: {
-    type: String,
-    trim: true
-  },
-  keywords: [{
-    type: String,
-    trim: true
-  }],
+  images: [
+    {
+      type: String,
+      required: true, // Ensures each entry in the array is a valid image path
+    },
+  ],
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
-// Create slug from title before saving
-gallerySchema.pre('save', function(next) {
-  if (this.isModified('title')) {
-    this.slug = this.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  }
+// Optional: Update `updatedAt` on every save
+gallerySchema.pre("save", function (next) {
+  this.updatedAt = Date.now();
   next();
 });
 
