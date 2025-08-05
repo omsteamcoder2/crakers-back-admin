@@ -10,6 +10,7 @@ import loggerMiddleware from "./middleware/loggerMiddleware.js";
 import gtmTagRoutes from "./routes/gtmRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import popupAdRoutes from "./routes/popupAdRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js"
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use("/api", galleryRoutes);
 app.use("/api", gtmTagRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", popupAdRoutes);
+app.use("/api", orderRoutes)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
